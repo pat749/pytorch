@@ -1360,6 +1360,9 @@ auto Engine::ready_queue(
     TORCH_INTERNAL_ASSERT(cpu_ready_queue);
     return cpu_ready_queue;
   } else {
+    if (device_ready_queues_.size() == 1) {
+      return device_ready_queues_.[0];
+    }
     TORCH_INTERNAL_ASSERT(
         0 <= device.index() &&
         device.index() <
@@ -1377,6 +1380,9 @@ auto Engine::ready_queue_by_index(
     TORCH_INTERNAL_ASSERT(cpu_ready_queue);
     return cpu_ready_queue;
   } else {
+    if (device_ready_queues_.size() == 1) {
+      return device_ready_queues_.[0];
+    }
     TORCH_INTERNAL_ASSERT(
         0 <= device_index &&
         device_index <
@@ -1421,6 +1427,10 @@ auto Engine::start_device_threads() -> void {
     return;
   }
 
+  if (one_cuda_device_in_registry) {
+    num_devices = 1;
+  }
+
   // Since we're about to create threads, forking is not possible anymore
   track_bad_autograd_forks();
 
@@ -1433,15 +1443,13 @@ auto Engine::start_device_threads() -> void {
   }
 
   if (one_cuda_device_in_registry) {
-    for (const auto i : c10::irange(num_devices)) {
-      std::thread t(
-          &Engine::thread_init,
-          this,
-          target_cuda_device,
-          device_ready_queues_[i],
-          true);
-      t.detach();
-    }
+    std::thread t(
+        &Engine::thread_init,
+        this,
+        target_cuda_device,
+        device_ready_queues_[0],
+        true);
+    t.detach();
   } else {
     for (const auto i : c10::irange(num_devices)) {
       std::thread t(
