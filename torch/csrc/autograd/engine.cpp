@@ -1361,7 +1361,7 @@ auto Engine::ready_queue(
     return cpu_ready_queue;
   } else {
     if (device_ready_queues_.size() == 1) {
-      return device_ready_queues_.[0];
+      return device_ready_queues_[0];
     }
     TORCH_INTERNAL_ASSERT(
         0 <= device.index() &&
@@ -1381,7 +1381,7 @@ auto Engine::ready_queue_by_index(
     return cpu_ready_queue;
   } else {
     if (device_ready_queues_.size() == 1) {
-      return device_ready_queues_.[0];
+      return device_ready_queues_[0];
     }
     TORCH_INTERNAL_ASSERT(
         0 <= device_index &&
