@@ -87,7 +87,14 @@ def _retrieve_or_adapt_input_to_graph_set(fx_node_arg, fx_name_to_onnxscipt_valu
         # 2. fx_node_arg (variable in torch.fx.Graph) is be mapped to
         #    torch.jit.Value, fx_name_to_onnxscipt_value[fx_node_arg.name],
         #    in TorchScript graph.
+        # onnx tensor should be TorchScriptTensor here.
         onnx_tensor = fx_name_to_onnxscipt_value[onnx_tensor.name]
+    elif isinstance(onnx_tensor, (tuple, list)):
+        # TODO(titaiwang): Support List of Tensors: https://github.com/microsoft/onnx-script/issues/481
+        # This is the case that fx has [tensor, tensor, ...], but onnxscript_value wrapped it as a single tensor.
+        # graph_buiding not yet support list of tensors, so we don't need to handle this case for now.
+        # eg: aten_expand size
+        pass
     elif isinstance(onnx_tensor, torch.dtype):
         onnx_tensor = int(_type_utils.JitScalarType.from_dtype(onnx_tensor).onnx_type())
 
@@ -189,6 +196,10 @@ def _fill_tensor_meta(
         # This is the case that fx has [tensor, tensor, ...], but onnxscript_value wrapped it as a single tensor.
         # graph_buiding not yet support list of tensors, so we don't need to handle this case for now.
         # eg: aten_split
+        warnings.warn(
+            f"node: {name} has list of tensors: {expected_values},"
+            f"but onnxscript_value wrapped it as a single tensor: {onnxscript_values}"
+        )
         return
 
     flat_onnxscript_values, _ = _pytree.tree_flatten(onnxscript_values)
@@ -197,7 +208,7 @@ def _fill_tensor_meta(
         zip(flat_onnxscript_values, flat_expected_values)
     ):
         # Only set shape for now as we don't need type information.
-        onnxscript_value.shape = tuple(expected_value.size())
+        onnxscript_value.shape = tuple(len(expected_value.size()) * [None])
         if i > 0:
             onnxscript_value.name = f"{name}_{i}"
         else:
@@ -513,6 +524,7 @@ def _export(
     export_options.update(**kwargs)
     # Apply decomposition table to the input graph.
     # Make sure the feed-in "module" is stateless.
+    # import pdb; pdb.set_trace()
     decomposed_module = proxy_tensor.make_fx(
         module,
         decomposition_table=export_options.decomposition_table,
@@ -526,7 +538,7 @@ def _export(
     # Symbolic output of the i-th node can be accessed via
     # decomposed_module.graph.nodes[i].meta["val"]
     decomposed_module = _shape_inference_with_fake_tensor(decomposed_module, *args)
-
+    # print("\nfx.graph: ", decomposed_module.print_readable())
     # We want to pass list of ints and floats to TorchScript graph correctly
     # in _export_fx_to_ts, so we must disable FakeTensorMode. Otherwise, graph may
     # receive FakeTensor and results runtime error. In addition, TorchScript-based
@@ -613,6 +625,7 @@ def export_after_normalizing_args_and_kwargs(
 
     # We hope the input kwargs will be mapped to bound.args after binding.
     # If not, we will raise an error.
+    # import pdb; pdb.set_trace()
     bound = signature.bind(*args, **kwargs)
     bound.apply_defaults()
     # keyword-only arguments are not handled.
