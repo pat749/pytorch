@@ -189,7 +189,7 @@ def stacksize_analysis(instructions):
     low = min([x.low for x in stack_sizes.values()])
     high = max([x.high for x in stack_sizes.values()])
 
-    b = time.time(0)
+    b = time.time()
     print("CI TEST HERE: {:.2f}s".format(b - a))
     fixed_point.value = True
     assert low >= 0
